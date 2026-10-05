@@ -87,29 +87,39 @@ class Client:
     _reconnect_task: asyncio.Task | None = None
 
     @classmethod
-    def __del__(self):
-        self._is_stop_token_refresh = True
+    async def stop_reconnect(cls) -> None:
+        """Stop and await the reconnect loop.
+
+        This method sets the stop flag and cancels the background reconnect task
+        (if any), awaiting its completion. Safe to call multiple times and during/after
+        shutdown. Suitable for use in on_fatal_error callbacks.
+        """
+        await cls._cancel_reconnect_task()
 
     @classmethod
-    def disconnect(self):
-        """Stops the reconnect loop and closes the client.
+    def disconnect(cls) -> None:
+        """Deprecated: Stops the reconnect loop and closes the client.
 
-        This method cancels the background reconnect task (if any) and awaits its
-        completion so it doesn't remain pending. It also clears references to the
-        underlying client and runtime.
+        This method is synchronous for backward compatibility. For cleaner shutdown,
+        prefer the async stop_reconnect() method or call it via asyncio.run_coroutine_threadsafe().
+        This method signals the reconnect loop to stop and attempts to cancel any
+        background task, but does not await its completion. To guarantee the task
+        is stopped, use stop_reconnect() instead.
+
+        This method clears references to the underlying client and runtime.
         """
         # Signal reconnect loop to stop
-        self._is_stop_token_refresh = True
+        cls._is_stop_token_refresh = True
 
-        # Cancel the background reconnect task if it exists
-        if self._reconnect_task:
-            self._reconnect_task.cancel()
-            self._reconnect_task = None
+        # Cancel the background reconnect task if it exists (but don't await)
+        if cls._reconnect_task:
+            cls._reconnect_task.cancel()
+            cls._reconnect_task = None
 
-        if hasattr(self, "_client"):
-            del self._client
-        if hasattr(self, "_runtime"):
-            del self._runtime
+        if hasattr(cls, "_client"):
+            del cls._client
+        if hasattr(cls, "_runtime"):
+            del cls._runtime
 
     @classmethod
     def instance(self) -> Optional[TemporalClient]:

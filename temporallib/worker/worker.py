@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Awaitable, Callable, Optional, Sequence, Type
+import logging
 
 import sentry_sdk
 from temporalio.client import Interceptor, OutboundInterceptor
@@ -22,6 +23,7 @@ from temporallib.worker.sentry_interceptor import (
     redact_params,
 )
 
+logging.basicConfig(level=logging.INFO)
 
 @dataclass
 class WorkerOptions:
@@ -91,6 +93,30 @@ class Worker(TemporalWorker):
                     sample_rate=worker_opt.sentry.sample_rate,
                     before_send=before_send,
                 )
+
+        # Capture the app-supplied callback under its own name before it is
+        # shadowed below. Without this, the closure would look up
+        # `on_fatal_error` at call time via late binding and find itself,
+        # causing infinite recursion.
+        _user_on_fatal_error = on_fatal_error
+
+        async def _on_fatal_error_with_cleanup(exc: BaseException) -> None:
+            """Run user callback (if any), then stop the reconnect loop."""
+            try:
+                if _user_on_fatal_error:
+                    try:
+                        await _user_on_fatal_error(exc)
+                    except Exception:
+                        logging.exception("User on_fatal_error callback raised an exception")
+            finally:
+                # Always stop the reconnect loop, even if the user callback failed
+                try:
+                    await Client.stop_reconnect()
+                except Exception:
+                    logging.exception("Failed to stop reconnect loop during shutdown")
+
+        # Pass the wrapper to the parent Worker class
+        on_fatal_error = _on_fatal_error_with_cleanup
 
         super().__init__(
             client=client,
