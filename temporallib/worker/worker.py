@@ -94,10 +94,6 @@ class Worker(TemporalWorker):
                     before_send=before_send,
                 )
 
-        # Capture the app-supplied callback under its own name before it is
-        # shadowed below. Without this, the closure would look up
-        # `on_fatal_error` at call time via late binding and find itself,
-        # causing infinite recursion.
         _user_on_fatal_error = on_fatal_error
 
         async def _on_fatal_error_with_cleanup(exc: BaseException) -> None:
