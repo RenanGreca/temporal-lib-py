@@ -94,7 +94,9 @@ class Client:
         (if any), awaiting its completion. Safe to call multiple times and during/after
         shutdown. Suitable for use in on_fatal_error callbacks.
         """
+        logging.info("Stopping Client reconnect loop before worker shutdown...")
         await cls._cancel_reconnect_task()
+        logging.info("Reconnect loop successfully stopped.")
 
     @classmethod
     def disconnect(cls) -> None:

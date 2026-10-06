@@ -18,5 +18,9 @@ fmt: ## Reformat code for linter
 
 
 .PHONY: test
-test: ## Run tests
-	$(POETRY) run $(PY) -m $(PYTEST) tests
+test: ## Run unit tests (excludes integration tests)
+	$(POETRY) run $(PY) -m $(PYTEST) tests -m "not integration"
+
+.PHONY: integration-test
+integration-test: ## Run integration tests (spins up a real ephemeral Temporal dev server)
+	$(POETRY) run $(PY) -m $(PYTEST) tests/integration -m integration -v
