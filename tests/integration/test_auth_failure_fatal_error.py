@@ -15,35 +15,8 @@ This spins up:
      ``AuthHeaderProvider.get_headers`` patched to flip from a valid to an
      invalid header value on demand (no real IdP needed).
 
-It proves sdk-core's documented behavior
-(``core/src/worker/mod.rs::activity_poll``): unhandled gRPC statuses from
-polling (unlike retried ``Unavailable`` ones) are eventually treated as
-fatal, and that ``temporallib.Worker``'s ``on_fatal_error`` wrapper fires
-correctly and the worker tears down any in-flight, heartbeating activity as
-a result.
-
-Note on timing: sdk-core does NOT treat a ``PERMISSION_DENIED`` on a poll
-call as immediately fatal. Per ``client/src/retry.rs``, long-poll RPCs get a
-``LONG_POLL_FATAL_GRACE`` (60s) during which *any* error -- including
-otherwise-fatal codes like ``PERMISSION_DENIED`` -- is retried with backoff
-("some proxies return stupid error codes while getting ready"), only being
-forwarded as fatal once that grace period elapses. On top of that, any poll
-call already in flight when the credential is revoked keeps using the
-credential it started with (gRPC metadata is fixed per-call), so it has to
-complete/cycle before a *new* poll call -- the one that will actually see
-the revoked credential -- is even issued. In practice, firing
-``on_fatal_error`` has been observed to take on the order of ~1-1.5 minutes
-after revocation, hence the generous timeouts below.
-
-This test also waits for a full graceful ``worker.shutdown()`` afterwards
-(not just the fatal error callback) to prove the worker genuinely tears
-itself down -- including draining whichever of the activity/workflow
-pollers didn't fail first, which independently has to run out its own
-~70s poll timeout + ~60s ``LONG_POLL_FATAL_GRACE`` before it gives up too.
-That has been observed to add another ~1-2 minutes on top, hence
-``GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS`` below is generous. It is still
-bounded: if the worker ever fails to shut down within that window, the
-test fails loudly instead of hanging indefinitely.
+This test is inevitably long (3-4 minutes) due to timeouts defined within the
+Temporal Rust core that cannot be overridden via Python.
 """
 
 from __future__ import annotations
@@ -68,14 +41,12 @@ VALID_AUTH_HEADER = "Bearer valid-dummy-token"
 REVOKED_AUTH_HEADER = "Bearer revoked-dummy-token"
 
 # The activity must comfortably outlast FATAL_ERROR_WAIT_TIMEOUT_SECONDS so
-# it is still in flight (and gets torn down) when the fatal error fires; see
-# the module docstring for why that can take ~1-2 minutes.
+# it is still in flight (and gets torn down) when the fatal error fires.
 ACTIVITY_DURATION_SECONDS = 170
 TOKEN_REFRESH_INTERVAL_SECONDS = 2
 FATAL_ERROR_WAIT_TIMEOUT_SECONDS = 150
-# Generous upper bound for the full graceful worker.shutdown() that follows
-# (see module docstring); this is what turns a hung worker into a clear test
-# failure instead of an indefinite hang.
+# Upper bound for the full graceful worker.shutdown() that follows. This is what
+# turns a hung worker into a clear test failure instead of an indefinite hang.
 GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 240
 
 
@@ -138,8 +109,7 @@ async def _running_worker(worker: Worker) -> AsyncIterator[asyncio.Task]:
     """Runs the worker in a background task and tears it down with a full
     graceful worker.shutdown() on exit (not just cancellation), bounded by
     GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS so a regression that leaves the worker
-    hung shows up as a clear test failure rather than hanging forever; see
-    the module docstring for why this can legitimately take a while."""
+    hung shows up as a clear test failure rather than hanging forever."""
     run_task = asyncio.create_task(worker.run())
     try:
         yield run_task
@@ -218,6 +188,9 @@ async def test_permission_denied_during_poll_triggers_on_fatal_error(monkeypatch
             fatal_error_event = asyncio.Event()
             captured_exceptions: List[BaseException] = []
 
+            # Define a custom on_fatal_error callback for the worker, which
+            # should be executed after a fatal error occurs and before the
+            # client disconnect and worker shutdown.
             async def on_fatal_error(exc: BaseException) -> None:
                 captured_exceptions.append(exc)
                 fatal_error_event.set()
