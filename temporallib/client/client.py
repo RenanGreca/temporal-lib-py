@@ -51,6 +51,7 @@ class Options(BaseSettings):
     auth: Optional[AuthOptions] = None
     prometheus_port: Optional[str] = None
     proxy: ProxyOptions = Field(default_factory=ProxyOptions)
+    token_refresh_interval: Optional[int] = Field(default=3300, gt=0, le=3600)
 
     model_config = SettingsConfigDict(env_prefix="TEMPORAL_")
 
@@ -83,7 +84,6 @@ class Client:
     _is_stop_token_refresh = False
     _initial_backoff = 60
     _max_backoff = 600
-    _token_refresh_interval = 3300
     _reconnect_task: asyncio.Task | None = None
 
     @classmethod
@@ -235,6 +235,7 @@ class Client:
         self._runtime = runtime
         self._keep_alive_config = keep_alive_config
         self._http_connect_proxy_config = self._build_proxy_config(client_opt.proxy)
+        self._token_refresh_interval = client_opt.token_refresh_interval
 
         if client_opt.auth:
             self._rpc_metadata.update(await self._get_auth_headers(client_opt.auth))
