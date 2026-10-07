@@ -51,7 +51,8 @@ class Options(BaseSettings):
     auth: Optional[AuthOptions] = None
     prometheus_port: Optional[str] = None
     proxy: ProxyOptions = Field(default_factory=ProxyOptions)
-    token_refresh_interval: Optional[int] = Field(default=3300, gt=0, le=3600)
+    # Default 30m, min 15m, max 60m
+    token_refresh_interval: Optional[int] = Field(default=1800, gt=900, le=3600)
 
     model_config = SettingsConfigDict(env_prefix="TEMPORAL_")
 
@@ -174,9 +175,9 @@ class Client:
             try:
                 await self._reconnect()
                 backoff = self._initial_backoff
-                await asyncio.sleep(
-                    self._token_refresh_interval
-                )  # Refresh tokens every ~55 minutes (OAuth tokens last 60 minutes)
+                # Refresh tokens according to the configured interval
+                # OAuth tokens last 60 minutes
+                await asyncio.sleep(self._token_refresh_interval)
                 logging.info("Refreshing token and reconnecting to Temporal server...")
             except Exception as e:
                 logging.error(f"Failed to reconnect to Temporal server: {e}")
