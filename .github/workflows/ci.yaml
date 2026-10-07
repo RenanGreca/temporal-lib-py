@@ -7,21 +7,21 @@ on:
 jobs:
   lint:
     name: Run Linter
-    uses: .github/workflows/run-make-command.yaml@main
+    uses: ./.github/workflows/run-make-command.yaml@main
     with:
       command: lint
       install-command: install-dev
 
   unit-test:
     name: Unit Tests
-    uses: .github/workflows/run-make-command.yaml@main
+    uses: ./.github/workflows/run-make-command.yaml@main
     with:
       command: test
       install-command: install-dev
 
   integration-test:
     name: Integration Tests
-    uses: .github/workflows/run-make-command.yaml@main
+    uses: ./.github/workflows/run-make-command.yaml@main
     with:
       command: integration-test
       install-command: install-dev
