@@ -85,6 +85,7 @@ class Client:
     _is_stop_token_refresh = False
     _initial_backoff = 60
     _max_backoff = 600
+    _token_refresh_interval: Optional[int] = None
     _reconnect_task: asyncio.Task | None = None
 
     @classmethod
@@ -170,6 +171,12 @@ class Client:
         """
         Reconnects to the Temporal server periodically when the token expires.
         """
+        if self._token_refresh_interval is None:
+            raise RuntimeError(
+                "Client.reconnect_loop() started without Client.connect() having "
+                "run; _token_refresh_interval is unset."
+            )
+
         backoff = self._initial_backoff
         while not self._is_stop_token_refresh:
             try:

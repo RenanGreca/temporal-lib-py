@@ -1,0 +1,27 @@
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches: [ 'main', 'develop' ]
+
+jobs:
+  lint:
+    name: Run Linter
+    uses: canonical/cs-github-actions/.github/workflows/run-make-command.yaml@main
+    with:
+      command: lint
+      install-command: install-dev
+
+  unit-test:
+    name: Unit Tests
+    uses: canonical/cs-github-actions/.github/workflows/run-make-command.yaml@main
+    with:
+      command: test
+      install-command: install-dev
+
+  integration-test:
+    name: Integration Tests
+    uses: canonical/cs-github-actions/.github/workflows/run-make-command.yaml@main
+    with:
+      command: integration-test
+      install-command: install-dev

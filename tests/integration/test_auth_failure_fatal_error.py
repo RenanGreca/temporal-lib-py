@@ -22,7 +22,7 @@ Temporal Rust core that cannot be overridden via Python.
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager, AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import timedelta
 from typing import AsyncIterator, List
 

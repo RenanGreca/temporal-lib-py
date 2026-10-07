@@ -43,7 +43,10 @@ class _PassthroughHandler(grpc.GenericRpcHandler):
         def _unary_unary(request_bytes: bytes, context: grpc.ServicerContext):
             metadata = tuple(context.invocation_metadata() or ())
             deny_value = self._proxy.deny_authorization
-            if deny_value is not None and dict(metadata).get("authorization") == deny_value:
+            if (
+                deny_value is not None
+                and dict(metadata).get("authorization") == deny_value
+            ):
                 logger.warning(
                     "AuthEnforcingProxy: rejecting %s with PERMISSION_DENIED "
                     "(simulated revoked credential)",

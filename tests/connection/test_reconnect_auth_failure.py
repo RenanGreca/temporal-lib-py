@@ -41,6 +41,7 @@ async def test_auth_failure_during_refresh_retries_forever_without_stopping():
     Client._is_stop_token_refresh = False
     Client._initial_backoff = 0.01
     Client._max_backoff = 0.02
+    Client._token_refresh_interval = 1800
 
     task = asyncio.create_task(Client.reconnect_loop())
     Client._reconnect_task = task
@@ -69,6 +70,7 @@ async def test_stop_reconnect_actually_cancels_task_same_loop():
     Client._is_stop_token_refresh = False
     Client._initial_backoff = 0.01
     Client._max_backoff = 0.02
+    Client._token_refresh_interval = 1800
 
     task = asyncio.create_task(Client.reconnect_loop())
     Client._reconnect_task = task
@@ -98,6 +100,7 @@ def test_stop_reconnect_from_different_event_loop_does_not_cancel_task():
         Client._is_stop_token_refresh = False
         Client._initial_backoff = 0.01
         Client._max_backoff = 0.02
+        Client._token_refresh_interval = 1800
         Client._reconnect_task = asyncio.create_task(Client.reconnect_loop())
         # Let it start running.
         await asyncio.sleep(0.05)

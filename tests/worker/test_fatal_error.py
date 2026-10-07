@@ -2,12 +2,13 @@
 
 import asyncio
 import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from temporallib.worker.worker import Worker, TemporalWorker
-from temporallib.client import Client, Options
+import pytest
+
 from temporallib.auth import AuthOptions, GoogleAuthOptions
+from temporallib.client import Client, Options
+from temporallib.worker.worker import TemporalWorker, Worker
 
 
 def _make_worker_capturing_on_fatal_error(on_fatal_error=None):

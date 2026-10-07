@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import concurrent.futures
+import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Awaitable, Callable, Optional, Sequence, Type
-import logging
 
 import sentry_sdk
 from temporalio.client import Interceptor, OutboundInterceptor
@@ -24,6 +24,7 @@ from temporallib.worker.sentry_interceptor import (
 )
 
 logging.basicConfig(level=logging.INFO)
+
 
 @dataclass
 class WorkerOptions:
@@ -103,7 +104,9 @@ class Worker(TemporalWorker):
                     try:
                         await _user_on_fatal_error(exc)
                     except Exception:
-                        logging.exception("User on_fatal_error callback raised an exception")
+                        logging.exception(
+                            "User on_fatal_error callback raised an exception"
+                        )
             finally:
                 # Always stop the reconnect loop, even if the user callback failed
                 try:
