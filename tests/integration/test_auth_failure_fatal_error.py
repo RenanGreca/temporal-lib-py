@@ -182,8 +182,10 @@ async def test_permission_denied_during_poll_triggers_on_fatal_error(monkeypatch
                         client_id="dummy-client-id",
                     ),
                 ),
-                token_refresh_interval=TOKEN_REFRESH_INTERVAL_SECONDS,
             )
+            # Bypass the field's lower-bound validation (assignment is not
+            # validated) so the test doesn't wait for the production minimum.
+            options.token_refresh_interval = TOKEN_REFRESH_INTERVAL_SECONDS
 
             fatal_error_event = asyncio.Event()
             captured_exceptions: List[BaseException] = []

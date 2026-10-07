@@ -236,7 +236,7 @@ async def test_connect_default_token_refresh_interval(monkeypatch):
 
     await Client.connect(opts)
 
-    assert Client._token_refresh_interval == 3300
+    assert Client._token_refresh_interval == 1800
 
 
 @pytest.mark.asyncio
@@ -245,11 +245,11 @@ async def test_connect_custom_token_refresh_interval(monkeypatch):
     monkeypatch.setenv("TEMPORAL_NAMESPACE", "test namespace")
     monkeypatch.setattr(ServiceClient, "connect", AsyncMock(return_value=MagicMock()))
 
-    opts = Options(token_refresh_interval=60)
+    opts = Options(token_refresh_interval=1000)
 
     await Client.connect(opts)
 
-    assert Client._token_refresh_interval == 60
+    assert Client._token_refresh_interval == 1000
 
 
 def test_token_refresh_interval_rejects_above_max():
