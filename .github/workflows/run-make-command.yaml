@@ -17,6 +17,10 @@ on:
         description: make command to run
         type: string
         required: true
+      timeout-minutes:
+        description: Timeout in minutes, job will fail if it takes longer
+        type: number
+        default: 10
     secrets:
       github-token:
         description: GitHub token to use, if extra permissions are needed
@@ -25,6 +29,7 @@ on:
 jobs:
   run-jobs-in-matrix:
     runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6

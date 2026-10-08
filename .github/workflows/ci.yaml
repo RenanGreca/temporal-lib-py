@@ -11,6 +11,7 @@ jobs:
     with:
       command: lint
       install-command: install-dev
+      timeout-minutes: 5
 
   unit-test:
     name: Unit Tests
@@ -18,6 +19,7 @@ jobs:
     with:
       command: test
       install-command: install-dev
+      timeout-minutes: 5
 
   integration-test:
     name: Integration Tests
@@ -25,3 +27,4 @@ jobs:
     with:
       command: integration-test
       install-command: install-dev
+      timeout-minutes: 10
