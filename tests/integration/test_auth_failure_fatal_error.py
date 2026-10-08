@@ -138,12 +138,14 @@ async def _assert_reconnect_loop_stopped_itself() -> None:
         while not _reconnect_task_cleared():
             await asyncio.sleep(0.1)
 
-    await asyncio.wait_for(_wait_for_reconnect_cleared(), timeout=10)
-    assert _reconnect_task_cleared(), (
-        "Worker's on_fatal_error wrapper should have stopped the Client "
-        "reconnect loop itself, before any outer test/cleanup code calls "
-        "Client.stop_reconnect()"
-    )
+    try:
+        await asyncio.wait_for(_wait_for_reconnect_cleared(), timeout=10)
+    except asyncio.TimeoutError:
+        pytest.fail(
+            "Worker's on_fatal_error wrapper should have stopped the Client "
+            "reconnect loop itself, before any outer test/cleanup code calls "
+            "Client.stop_reconnect()"
+        )
 
 
 @pytest.mark.integration

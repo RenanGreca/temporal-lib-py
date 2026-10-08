@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -155,3 +156,52 @@ async def test_client_can_reconnect_after_fatal_error():
     Client._is_stop_token_refresh = False
     assert Client._client is None or not Client._client
     # In a real test, we'd mock TemporalClient.connect here
+
+
+@pytest.mark.asyncio
+async def test_on_fatal_error_arms_force_exit_timer(monkeypatch):
+    """A hung shutdown after a fatal error must end in a forced process exit."""
+    from temporallib.worker import worker as worker_module
+
+    exited = threading.Event()
+    monkeypatch.setattr(worker_module, "_force_exit", exited.set)
+
+    captured = {}
+    with patch.object(
+        TemporalWorker, "__init__", lambda self, **kw: captured.update(kw)
+    ):
+        Worker(client=MagicMock(), task_queue="q", fatal_exit_timeout=0.1)
+
+    Client._client = MagicMock()
+    Client._reconnect_task = None
+    await captured["on_fatal_error"](RuntimeError("boom"))
+
+    assert exited.wait(timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_force_exit_timer_disabled_when_timeout_is_none(monkeypatch):
+    from temporallib.worker import worker as worker_module
+
+    captured = {}
+    with patch.object(
+        TemporalWorker, "__init__", lambda self, **kw: captured.update(kw)
+    ):
+        Worker(client=MagicMock(), task_queue="q", fatal_exit_timeout=None)
+
+    Client._client = MagicMock()
+    Client._reconnect_task = None
+    await captured["on_fatal_error"](RuntimeError("boom"))
+
+    assert worker_module._force_exit_timer is None
+
+
+def test_log_token_state_on_fatal_error(caplog):
+    Client._record_token({"authorization": "Bearer secret-token-value"})
+    with caplog.at_level(logging.ERROR):
+        Client.log_token_state_on_fatal_error(RuntimeError("boom"))
+
+    text = caplog.text
+    assert f"fingerprint={Client._last_token_fingerprint}" in text
+    assert "age=" in text
+    assert "secret-token-value" not in text

@@ -4,6 +4,7 @@ import asyncio
 import dataclasses
 import logging
 import os
+import time
 from typing import Callable, Iterable, Mapping, Optional, Union
 
 from pydantic import Field, SecretStr, model_validator
@@ -21,6 +22,7 @@ from temporalio.service import (
 )
 
 from temporallib.auth import AuthHeaderProvider, AuthOptions
+from temporallib.auth.auth import token_fingerprint
 from temporallib.encryption import EncryptionOptions, EncryptionPayloadCodec
 
 logging.basicConfig(level=logging.INFO)
@@ -86,6 +88,8 @@ class Client:
     _initial_backoff = 60
     _max_backoff = 600
     _token_refresh_interval: Optional[int] = None
+    _last_token_fingerprint: Optional[str] = None
+    _last_token_fetched_at: Optional[float] = None
     _reconnect_task: asyncio.Task | None = None
 
     @classmethod
@@ -134,7 +138,39 @@ class Client:
     async def _get_auth_headers(self, auth: AuthOptions) -> Mapping[str, str]:
         auth_header_provider = AuthHeaderProvider(auth)
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, auth_header_provider.get_headers)
+        headers = await loop.run_in_executor(None, auth_header_provider.get_headers)
+        self._record_token(headers)
+        return headers
+
+    @classmethod
+    def _record_token(self, headers: Mapping[str, str]) -> None:
+        value = headers.get("authorization")
+        if not value:
+            return
+        self._last_token_fingerprint = token_fingerprint(value)
+        self._last_token_fetched_at = time.time()
+        logging.info(
+            "Auth token refreshed: fingerprint=%s next_refresh_in=%ss",
+            self._last_token_fingerprint,
+            self._token_refresh_interval,
+        )
+
+    @classmethod
+    def log_token_state_on_fatal_error(self, exc: BaseException) -> None:
+        """Log which token the worker was last given and how old it is, to tell
+        a stale token from one rejected while still fresh."""
+        if self._last_token_fetched_at is None:
+            logging.error("Fatal error with no auth token on record: %r", exc)
+            return
+        logging.error(
+            "Fatal error; last auth token fingerprint=%s age=%.0fs refresh_interval=%ss "
+            "reconnect_loop_active=%s error=%r",
+            self._last_token_fingerprint,
+            time.time() - self._last_token_fetched_at,
+            self._token_refresh_interval,
+            self._reconnect_task is not None and not self._reconnect_task.done(),
+            exc,
+        )
 
     @classmethod
     def _build_proxy_config(

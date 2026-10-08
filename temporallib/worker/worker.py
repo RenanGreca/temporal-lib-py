@@ -3,13 +3,13 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import os
-from collections import defaultdict
-from dataclasses import dataclass, field
+import threading
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Awaitable, Callable, Optional, Sequence, Type
 
 import sentry_sdk
-from temporalio.client import Interceptor, OutboundInterceptor
+from temporalio.client import Interceptor
 from temporalio.worker import SharedStateManager
 from temporalio.worker import Worker as TemporalWorker
 from temporalio.worker import WorkflowRunner
@@ -24,6 +24,43 @@ from temporallib.worker.sentry_interceptor import (
 )
 
 logging.basicConfig(level=logging.INFO)
+
+DEFAULT_FATAL_EXIT_TIMEOUT = 60.0
+
+_force_exit_timer_lock = threading.Lock()
+_force_exit_timer: Optional[threading.Timer] = None
+
+
+def _force_exit() -> None:
+    logging.critical(
+        "Worker did not shut down in time after a fatal error; forcing process exit"
+    )
+    try:
+        sentry_sdk.flush(timeout=2)
+    except Exception:
+        pass
+    for handler in logging.getLogger().handlers:
+        try:
+            handler.flush()
+        except Exception:
+            pass
+    os._exit(1)
+
+
+def _arm_force_exit_timer(timeout: float) -> None:
+    """Force the process to exit if graceful shutdown hangs after a fatal error.
+
+    Uses a daemon thread rather than the event loop, so it still fires if the
+    loop is wedged, and does not keep a cleanly exiting process alive.
+    """
+    global _force_exit_timer
+    with _force_exit_timer_lock:
+        if _force_exit_timer is not None:
+            return
+        _force_exit_timer = threading.Timer(timeout, _force_exit)
+        _force_exit_timer.daemon = True
+        _force_exit_timer.start()
+    logging.warning("Fatal error force-exit timer armed: forcing exit in %ss", timeout)
 
 
 @dataclass
@@ -69,6 +106,7 @@ class Worker(TemporalWorker):
         disable_eager_activity_execution: bool = False,
         on_fatal_error: Optional[Callable[[BaseException], Awaitable[None]]] = None,
         use_worker_versioning: bool = False,
+        fatal_exit_timeout: Optional[float] = DEFAULT_FATAL_EXIT_TIMEOUT,
     ):
         if interceptors is None:
             interceptors = []
@@ -99,6 +137,9 @@ class Worker(TemporalWorker):
 
         async def _on_fatal_error_with_cleanup(exc: BaseException) -> None:
             """Run user callback (if any), then stop the reconnect loop."""
+            if fatal_exit_timeout is not None:
+                _arm_force_exit_timer(fatal_exit_timeout)
+            Client.log_token_state_on_fatal_error(exc)
             try:
                 if _user_on_fatal_error:
                     try:
