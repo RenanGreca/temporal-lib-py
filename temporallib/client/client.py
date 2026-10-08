@@ -52,7 +52,7 @@ class Options(BaseSettings):
     prometheus_port: Optional[str] = None
     proxy: ProxyOptions = Field(default_factory=ProxyOptions)
     # Default 30m, min 15m, max 60m
-    token_refresh_interval: Optional[int] = Field(default=1800, gt=900, le=3600)
+    token_refresh_interval: int = Field(default=1800, ge=900, le=3600)
 
     model_config = SettingsConfigDict(env_prefix="TEMPORAL_")
 
