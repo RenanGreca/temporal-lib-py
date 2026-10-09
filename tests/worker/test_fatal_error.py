@@ -2,8 +2,8 @@
 
 import asyncio
 import logging
-from datetime import timedelta
 import threading
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -171,7 +171,11 @@ async def test_on_fatal_error_arms_force_exit_timer(monkeypatch):
     with patch.object(
         TemporalWorker, "__init__", lambda self, **kw: captured.update(kw)
     ):
-        Worker(client=MagicMock(), task_queue="q", fatal_exit_timeout=timedelta(seconds=0.1))
+        Worker(
+            client=MagicMock(),
+            task_queue="q",
+            fatal_exit_timeout=timedelta(seconds=0.1),
+        )
 
     Client._client = MagicMock()
     Client._reconnect_task = None
