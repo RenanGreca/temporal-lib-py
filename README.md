@@ -161,7 +161,7 @@ that are sent to Sentry.
 
 When the worker hits a fatal error (e.g. `PermissionDenied` while polling), the
 reconnect loop is stopped and a force-exit timer is armed. If the process has not exited
-within `fatal_exit_timeout` seconds (default `60`), it is force-killed with exit
+within `graceful_shutdown_timeout + fatal_exit_timeout` (default 60 seconds), it is force-killed with exit
 code 1 (after flushing Sentry and logs) so a supervisor can restart it, since
 the SDK's shutdown can hang. Pass `fatal_exit_timeout=None` to disable this,
 e.g. when embedding the worker in a larger process.

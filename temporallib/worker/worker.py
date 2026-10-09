@@ -25,7 +25,7 @@ from temporallib.worker.sentry_interceptor import (
 
 logging.basicConfig(level=logging.INFO)
 
-DEFAULT_FATAL_EXIT_TIMEOUT = 60.0
+DEFAULT_FATAL_EXIT_TIMEOUT = timedelta(seconds=60)
 
 _force_exit_timer_lock = threading.Lock()
 _force_exit_timer: Optional[threading.Timer] = None
@@ -106,7 +106,7 @@ class Worker(TemporalWorker):
         disable_eager_activity_execution: bool = False,
         on_fatal_error: Optional[Callable[[BaseException], Awaitable[None]]] = None,
         use_worker_versioning: bool = False,
-        fatal_exit_timeout: Optional[float] = DEFAULT_FATAL_EXIT_TIMEOUT,
+        fatal_exit_timeout: Optional[timedelta] = DEFAULT_FATAL_EXIT_TIMEOUT,
     ):
         if interceptors is None:
             interceptors = []
@@ -136,9 +136,15 @@ class Worker(TemporalWorker):
         _user_on_fatal_error = on_fatal_error
 
         async def _on_fatal_error_with_cleanup(exc: BaseException) -> None:
-            """Run user callback (if any), then stop the reconnect loop."""
+            """Run user callback (if any), then stop the reconnect loop.
+
+            If fatal_exit_timeout is set, arm a timer to force the process to exit
+            after graceful_shutdown_timeout + fatal_exit_timeout.
+            """
             if fatal_exit_timeout is not None:
-                _arm_force_exit_timer(fatal_exit_timeout)
+                _arm_force_exit_timer(
+                    (graceful_shutdown_timeout + fatal_exit_timeout).total_seconds()
+                )
             Client.log_token_state_on_fatal_error(exc)
             try:
                 if _user_on_fatal_error:
